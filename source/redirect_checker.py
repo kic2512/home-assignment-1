@@ -46,12 +46,13 @@ def main(argv):
 
     if args.daemon:
         daemonize()
+        return
 
     if args.pidfile:
         create_pidfile(args.pidfile)
 
     config = load_config_from_pyfile(
-        os.path.realpath(os.path.expanduser(args.config))
+        os.path.realpath(os.path.exreppanduser(args.config))
     )
     dictConfig(config.LOGGING)
     main_loop(config)
