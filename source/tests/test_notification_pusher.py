@@ -1,7 +1,7 @@
 import unittest
 import mock
 from notification_pusher import create_pidfile, daemonize, install_signal_handlers, load_config_from_pyfile, \
-    parse_cmd_args, main_loop
+    parse_cmd_args, main_loop, stop_handler
 from mock import call
 from test_redirect_checker import Config
 
@@ -86,7 +86,7 @@ class NotificationPusherTestCase(unittest.TestCase):
             parse_cmd_args(None)
             self.assertEqual(True, argparse_mock.called)
 
-    def test_main_loop_task_exists(self):
+    def test_main_loop_run_app(self):
         logger_mock = mock.Mock()
         tarantool_queue_mock = mock.Mock()
         tube_mock = mock.Mock()
@@ -109,6 +109,30 @@ class NotificationPusherTestCase(unittest.TestCase):
                                 with mock.patch('notification_pusher.sleep', sleep_mock, create=True):
                                     with self.assertRaises(KeyboardInterrupt):
                                         main_loop(config)
+
+    def test_main_loop_not_run_app(self):
+        logger_mock = mock.Mock()
+        tarantool_queue_mock = mock.Mock()
+        tube_mock = mock.Mock()
+        gevent_queue_mock = mock.Mock()
+
+        tube_mock.take.return_value = True
+        gevent_queue_mock.Queue.return_value = 1
+
+        with mock.patch('notification_pusher.logger', logger_mock, create=True):
+            with mock.patch('notification_pusher.tarantool_queue', tarantool_queue_mock, create=True):
+                with mock.patch('notification_pusher.gevent_queue', gevent_queue_mock, create=True):
+                    with mock.patch('notification_pusher.tube', tube_mock, create=True):
+                        with mock.patch('notification_pusher.run_application', False, create=True):
+                            main_loop(config)
+                            logger_mock.info.assert_called_with('Stop application loop.')
+
+    def test_stop_handler(self):
+        signum = 42
+        logger_mock = mock.Mock()
+        with mock.patch('notification_pusher.logger', logger_mock, create=True):
+            stop_handler(signum)
+            logger_mock.info.assert_called_with('Got signal #{signum}.'.format(signum=signum))
 
 
 """
