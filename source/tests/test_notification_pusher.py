@@ -1,9 +1,11 @@
 import unittest
 import mock
+import tarantool
 from notification_pusher import create_pidfile, daemonize, install_signal_handlers, load_config_from_pyfile, \
-    parse_cmd_args, main_loop, stop_handler
+    parse_cmd_args, main_loop, stop_handler, done_with_processed_tasks
 from mock import call
 from test_redirect_checker import Config
+from gevent import queue as gevent_queue
 
 config = Config
 config.WORKER_POOL_SIZE = 1
@@ -133,6 +135,50 @@ class NotificationPusherTestCase(unittest.TestCase):
         with mock.patch('notification_pusher.logger', logger_mock, create=True):
             stop_handler(signum)
             logger_mock.info.assert_called_with('Got signal #{signum}.'.format(signum=signum))
+
+    def test_done_with_processed_tasks_success(self):
+        logger_mock = mock.Mock()
+        task_queue_mock = mock.Mock()
+        getattr_mock = mock.Mock()
+
+        task_queue_mock.qsize.return_value = 1
+        task_queue_mock.get_nowait.return_value = [mock.Mock(), mock.Mock()]
+        with mock.patch('notification_pusher.logger', logger_mock, create=True):
+            with mock.patch('notification_pusher.task_queue', task_queue_mock, create=True):
+                with mock.patch('notification_pusher.getattr', getattr_mock, create=True):
+                    done_with_processed_tasks(task_queue_mock)
+                    self.assertEqual(1, getattr_mock.call_count)
+
+    def test_done_with_processed_tasks_tarantool_exc(self):
+        logger_mock = mock.Mock()
+        task_queue_mock = mock.Mock()
+        getattr_mock = mock.Mock()
+
+        task_queue_mock.qsize.return_value = 1
+        task_queue_mock.get_nowait.return_value = [mock.Mock(), mock.Mock()]
+        getattr_mock.side_effect = tarantool.DatabaseError
+
+        with mock.patch('notification_pusher.logger', logger_mock, create=True):
+            with mock.patch('notification_pusher.task_queue', task_queue_mock, create=True):
+                with mock.patch('notification_pusher.getattr', getattr_mock, create=True):
+                    done_with_processed_tasks(task_queue_mock)
+                    self.assertEqual(True, logger_mock.exception.called)
+
+    def test_done_with_processed_tasks_queue_exc(self):
+        logger_mock = mock.Mock()
+        task_queue_mock = mock.Mock()
+        gevent_queue_mock = mock.Mock()
+        getattr_mock = mock.Mock()
+
+        task_queue_mock.qsize.return_value = 1
+        task_queue_mock.get_nowait.side_effect = gevent_queue.Empty
+
+        with mock.patch('notification_pusher.logger', logger_mock, create=True):
+            with mock.patch('notification_pusher.task_queue', task_queue_mock, create=True):
+                with mock.patch('notification_pusher.break', gevent_queue_mock, create=True):
+                    with mock.patch('notification_pusher.getattr', getattr_mock, create=True):
+                        done_with_processed_tasks(task_queue_mock)
+                        self.assertEqual(False, getattr_mock.called)  # TODO check if break
 
 
 """
