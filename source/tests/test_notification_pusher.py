@@ -1,7 +1,19 @@
 import unittest
 import mock
-from notification_pusher import create_pidfile, daemonize
+from notification_pusher import create_pidfile, daemonize, install_signal_handlers, load_config_from_pyfile, \
+    parse_cmd_args, main_loop
 from mock import call
+from test_redirect_checker import Config
+
+config = Config
+config.WORKER_POOL_SIZE = 1
+config.QUEUE_HOST = 1
+config.QUEUE_PORT = 1
+config.QUEUE_SPACE = 1
+config.QUEUE_TUBE = 1
+config.QUEUE_TAKE_TIMEOUT = 1
+config.HTTP_CONNECTION_TIMEOUT = 1
+config.SLEEP = 0
 
 
 class NotificationPusherTestCase(unittest.TestCase):
@@ -36,7 +48,7 @@ class NotificationPusherTestCase(unittest.TestCase):
             with mock.patch('os.setsid', setsid_mock, create=True):
                 with mock.patch('os._exit', exit_mock, create=True):
                     daemonize()
-                    assert exit_mock.called
+                    self.assertEqual(True, exit_mock.called)
 
     def test_daemonize_cant_fork_any_times(self):
         fork_mock = mock.Mock()
@@ -45,7 +57,7 @@ class NotificationPusherTestCase(unittest.TestCase):
         with mock.patch('os.fork', fork_mock, create=True):
             with mock.patch('os._exit', exit_mock, create=True):
                 daemonize()
-                assert exit_mock.called
+                self.assertEqual(True, exit_mock.called)
 
     def test_daemonize_fork_except_first_time(self):
         fork_mock = mock.Mock()
@@ -60,3 +72,54 @@ class NotificationPusherTestCase(unittest.TestCase):
         with mock.patch('os.fork', fork_mock, create=True):
             with mock.patch('os.setsid', setsid_mock, create=True):
                 self.assertRaises(Exception, lambda: daemonize())
+
+    def test_install_signal_handlers(self):
+        gevent_mock = mock.Mock()
+        gevent_mock.signal.return_value = None
+        with mock.patch('gevent.signal', gevent_mock, create=True):
+            install_signal_handlers()
+            self.assertEqual(4, gevent_mock.call_count)
+
+    def test_parse_cmd_args(self):
+        argparse_mock = mock.Mock()
+        with mock.patch('notification_pusher.argparse.ArgumentParser', argparse_mock, create=True):
+            parse_cmd_args(None)
+            self.assertEqual(True, argparse_mock.called)
+
+    def test_main_loop_task_exists(self):
+        logger_mock = mock.Mock()
+        tarantool_queue_mock = mock.Mock()
+        tube_mock = mock.Mock()
+        gevent_queue_mock = mock.Mock()
+        greenlet_mock = mock.Mock()
+        sleep_mock = mock.Mock()
+        done_with_processed_tasks_mock = mock.Mock()
+
+        tube_mock.take.return_value = True
+        sleep_mock.side_effect = KeyboardInterrupt
+        gevent_queue_mock.Queue.return_value = 1
+
+        with mock.patch('notification_pusher.logger', logger_mock, create=True):
+            with mock.patch('notification_pusher.tarantool_queue', tarantool_queue_mock, create=True):
+                with mock.patch('notification_pusher.gevent_queue', gevent_queue_mock, create=True):
+                    with mock.patch('notification_pusher.tube', tube_mock, create=True):
+                        with mock.patch('notification_pusher.Greenlet', greenlet_mock, create=True):
+                            with mock.patch('notification_pusher.done_with_processed_tasks',
+                                            done_with_processed_tasks_mock, create=True):
+                                with mock.patch('notification_pusher.sleep', sleep_mock, create=True):
+                                    with self.assertRaises(KeyboardInterrupt):
+                                        main_loop(config)
+
+
+"""
+    def test_load_config_from_pyfile_is_upper(self):
+        variables_mock = mock.Mock()
+        execfile_mock = mock.Mock()
+        setattr_mock = mock.Mock()
+        variables_mock.return_value = {'first': 1, 'second': 2}
+        with mock.patch('notification_pusher.execfile', execfile_mock, create=True):
+            with mock.patch('notification_pusher.setattr', setattr_mock, create=True):
+                with mock.patch('notification_pusher.variables', variables_mock, create=True):
+                    load_config_from_pyfile('')
+                    self.assertEqual(0, setattr_mock.call_count)
+                    # TODO CHECK"""
