@@ -34,7 +34,6 @@ class RedirectCheckerTestCase(unittest.TestCase):
                 with mock.patch('redirect_checker.check_network_status', mock.Mock(return_value=False)):
                     with self.assertRaises(KeyboardInterrupt):
                         redirect_checker.main_loop(config)
-
         logger.critical.assert_called_once_with("Network is down. stopping workers")
 
     def test_main_loop_check_network_status_true(self):
@@ -47,8 +46,8 @@ class RedirectCheckerTestCase(unittest.TestCase):
                 with mock.patch('redirect_checker.check_network_status', mock.Mock(return_value=True)):
                     with self.assertRaises(KeyboardInterrupt):
                         redirect_checker.main_loop(config)
-
-        logger.info.assert_called_with("Spawning 1 workers")
+        logger.info.assert_called_with(
+            'Spawning ' + str(config.WORKER_POOL_SIZE) + ' workers')
 
     def test_main_loop_check_network_status_true_without_if(self):
         logger = mock.Mock()
@@ -59,13 +58,16 @@ class RedirectCheckerTestCase(unittest.TestCase):
                 with mock.patch('redirect_checker.check_network_status', mock.Mock(return_value=True)):
                     with self.assertRaises(KeyboardInterrupt):
                         redirect_checker.main_loop(config)
+        logger.info.assert_called_once_with(
+            u'Run main loop. Worker pool size=' +
+            str(config.WORKER_POOL_SIZE) + '. Sleep time is ' +
+            str(config.SLEEP) + '.')
 
     def test_main_daemon_true(self):
         daemon = mock.Mock()
 
         with mock.patch('redirect_checker.daemonize', daemon, create=True):
             redirect_checker.main(['', '-c smth', '-d'])
-
         daemon.assert_any_call()
 
     def test_main_pidfile_true(self):
@@ -75,7 +77,6 @@ class RedirectCheckerTestCase(unittest.TestCase):
             with mock.patch('redirect_checker.load_config_from_pyfile', mock.Mock(return_value=config)):
                 with mock.patch('redirect_checker.main_loop', mock.Mock()):
                     self.assertEqual(redirect_checker.main(['', '-c path', '-P file']), config.EXIT_CODE)
-
         pidfile.assert_called_once_with(' file')
 
     def test_main_daemonize_false_pidfile_false(self):
