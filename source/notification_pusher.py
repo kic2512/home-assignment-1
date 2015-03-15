@@ -19,7 +19,7 @@ from gevent.pool import Pool
 import requests
 import tarantool
 import tarantool_queue
-
+from requests.exceptions import RequestException
 SIGNAL_EXIT_CODE_OFFSET = 128
 """Коды выхода рассчитываются как 128 + номер сигнала"""
 
@@ -62,7 +62,7 @@ def notification_worker(task, task_queue, *args, **kwargs):
         ))
 
         task_queue.put((task, 'ack'))
-    except requests.RequestException as exc:
+    except RequestException as exc:
         logger.exception(exc)
         task_queue.put((task, 'bury'))
 
