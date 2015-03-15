@@ -7,6 +7,7 @@ from mock import call
 from test_redirect_checker import Config
 from gevent import queue as gevent_queue
 from requests.exceptions import RequestException
+import notification_pusher
 
 config = Config
 config.WORKER_POOL_SIZE = 1
@@ -277,3 +278,26 @@ class NotificationPusherTestCase(unittest.TestCase):
                                                 with mock.patch('notification_pusher.logger', logger_mock, create=True):
                                                     with self.assertRaises(KeyboardInterrupt):
                                                         main(argv)
+
+    def test_main_not_run_app(self):
+        parse_cmd_args_mock = mock.Mock()
+        patch_all_mock = mock.Mock()
+        logger_mock = mock.Mock()
+
+        argv = [1, 2, 3]
+        parse_cmd_args_mock.return_value = mock.Mock()
+        notification_pusher.run_application = False
+
+        with mock.patch('notification_pusher.parse_cmd_args', parse_cmd_args_mock, create=True):
+            with mock.patch('notification_pusher.daemonize', mock.Mock(), create=True):
+                with mock.patch('notification_pusher.create_pidfile', mock.Mock(), create=True):
+                    with mock.patch('notification_pusher.load_config_from_pyfile', mock.Mock(),
+                                    create=True):
+                        with mock.patch('notification_pusher.patch_all', patch_all_mock, create=True):
+                            with mock.patch('notification_pusher.install_signal_handlers', mock.Mock(),
+                                            create=True):
+                                with mock.patch('notification_pusher.os', mock.Mock(), create=True):
+                                    with mock.patch('notification_pusher.dictConfig', mock.Mock(), create=True):
+                                        with mock.patch('notification_pusher.logger', logger_mock, create=True):
+                                            main(argv)
+                                            logger_mock.info.assert_called_with('Stop application loop in main.')
