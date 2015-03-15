@@ -2,10 +2,11 @@ import unittest
 import mock
 import tarantool
 from notification_pusher import create_pidfile, daemonize, install_signal_handlers, load_config_from_pyfile, \
-    parse_cmd_args, main_loop, stop_handler, done_with_processed_tasks
+    parse_cmd_args, main_loop, stop_handler, done_with_processed_tasks, notification_worker
 from mock import call
 from test_redirect_checker import Config
 from gevent import queue as gevent_queue
+import requests
 
 config = Config
 config.WORKER_POOL_SIZE = 1
@@ -65,7 +66,7 @@ class NotificationPusherTestCase(unittest.TestCase):
         fork_mock = mock.Mock()
         fork_mock.side_effect = OSError(1, "I am exception !")
         with mock.patch('os.fork', fork_mock, create=True):
-            self.assertRaises(Exception, lambda: daemonize())
+            self.assertRaises(Exception)
 
     def test_daemonize_fork_except_second_time(self):
         fork_mock = mock.Mock()
@@ -180,16 +181,42 @@ class NotificationPusherTestCase(unittest.TestCase):
                         done_with_processed_tasks(task_queue_mock)
                         self.assertEqual(False, getattr_mock.called)  # TODO check if break
 
-
-"""
     def test_load_config_from_pyfile_is_upper(self):
         variables_mock = mock.Mock()
         execfile_mock = mock.Mock()
         setattr_mock = mock.Mock()
-        variables_mock.return_value = {'first': 1, 'second': 2}
+        variables_mock.iteritems.return_value = {'first': 1, 'SECOND': 2}.iteritems()
         with mock.patch('notification_pusher.execfile', execfile_mock, create=True):
             with mock.patch('notification_pusher.setattr', setattr_mock, create=True):
                 with mock.patch('notification_pusher.variables', variables_mock, create=True):
                     load_config_from_pyfile('')
-                    self.assertEqual(0, setattr_mock.call_count)
-                    # TODO CHECK"""
+                    self.assertEqual(True, setattr_mock.called)
+                    # TODO ASK ABOUT VARIABLES = {}
+
+    def test_notification_worker_all_right(self):
+        logger_mock = mock.Mock()
+        task_mock = mock.Mock()
+        task_queue_mock = mock.Mock()
+        json_mock = mock.Mock()
+        requests_mock = mock.Mock()
+
+        task_mock.data.copy.return_value = {'id': 1, 'callback_url': 2}
+        with mock.patch('notification_pusher.logger', logger_mock, create=True):
+            with mock.patch('notification_pusher.json', json_mock, create=True):
+                with mock.patch('notification_pusher.requests', requests_mock, create=True):
+                    notification_worker(task_mock, task_queue_mock)
+                    self.assertEqual(0, logger_mock.exception.call_count)
+
+    def test_notification_worker_request_exc(self):
+        logger_mock = mock.Mock()
+        task_mock = mock.Mock()
+        task_queue_mock = mock.Mock()
+        json_mock = mock.Mock()
+        requests_mock = mock.Mock(side_effect=requests.RequestException)
+        requests_mock.post.side_effect = requests.RequestException
+
+        task_mock.data.copy.return_value = {'id': 1, 'callback_url': 2}
+        with mock.patch('notification_pusher.logger', logger_mock, create=True):
+            with mock.patch('notification_pusher.json', json_mock, create=True):
+                with mock.patch('notification_pusher.requests', requests_mock, create=True):
+                    self.assertRaises(requests.RequestException, lambda : notification_worker(task_mock, task_queue_mock))
