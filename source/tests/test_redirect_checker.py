@@ -27,14 +27,17 @@ class RedirectCheckerTestCase(unittest.TestCase):
     def test_main_loop_check_network_status_false(self):
 
         logger = mock.Mock()
+        child = mock.Mock()
         sleep = mock.Mock(side_effect=KeyboardInterrupt)
 
         with mock.patch('redirect_checker.logger', logger, create=True):
             with mock.patch('redirect_checker.sleep', sleep, create=True):
                 with mock.patch('redirect_checker.check_network_status', mock.Mock(return_value=False)):
-                    with self.assertRaises(KeyboardInterrupt):
-                        redirect_checker.main_loop(config)
+                    with mock.patch('redirect_checker.active_children', mock.Mock(return_value=(child, child))):
+                        with self.assertRaises(KeyboardInterrupt):
+                            redirect_checker.main_loop(config)
         logger.critical.assert_called_once_with("Network is down. stopping workers")
+        child.terminate.assert_has_calls([mock.call, mock.call])
 
     def test_main_loop_check_network_status_true(self):
         config.WORKER_POOL_SIZE = 1
@@ -48,6 +51,7 @@ class RedirectCheckerTestCase(unittest.TestCase):
                         redirect_checker.main_loop(config)
         logger.info.assert_called_with(
             'Spawning ' + str(config.WORKER_POOL_SIZE) + ' workers')
+        config.WORKER_POOL_SIZE = 0
 
     def test_main_loop_check_network_status_true_without_if(self):
         logger = mock.Mock()
