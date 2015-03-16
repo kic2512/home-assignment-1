@@ -63,7 +63,8 @@ class UtilsTestCase(unittest.TestCase):
 
     def execfile_patch(self, filepath, varaibles):
         varaibles.update({
-            'A': '1',
+            'lower': None,
+            'UPPER': None
         })
 
     def test_load_config_from_pyfile(self):
@@ -71,7 +72,6 @@ class UtilsTestCase(unittest.TestCase):
 
         with mock.patch('__builtin__.execfile', mock.Mock(side_effect=self.execfile_patch)):
             self.assertEqual(type(utils.load_config_from_pyfile('filepath')), type(confid))
-
 
     def test_parse_cmd_args(self):
         args = 'arguments'
@@ -105,10 +105,9 @@ class UtilsTestCase(unittest.TestCase):
 
     def test_check_network_status_false(self):
 
-        with mock.patch('lib.utils.urllib2.urlopen', mock.Mock(side_effect=Exception)):
-            with self.assertRaises(Exception):
-                self.assertEqual(utils.check_network_status(None, None), False)
-        # TODO Exit after exception. Return false unusable.
+        with mock.patch('lib.utils.urllib2.urlopen', mock.Mock(side_effect=ValueError)):
+            # with self.assertRaises(Exception):
+            self.assertEqual(utils.check_network_status(None, None), False)
 
 
 
