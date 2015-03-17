@@ -43,12 +43,14 @@ class RedirectCheckerTestCase(unittest.TestCase):
         config.WORKER_POOL_SIZE = 1
         logger = mock.Mock()
         sleep = mock.Mock(side_effect=KeyboardInterrupt)
+        spawn_workers = mock.Mock()
 
         with mock.patch('redirect_checker.logger', logger, create=True):
             with mock.patch('redirect_checker.sleep', sleep, create=True):
                 with mock.patch('redirect_checker.check_network_status', mock.Mock(return_value=True)):
-                    with self.assertRaises(KeyboardInterrupt):
-                        redirect_checker.main_loop(config)
+                    with mock.patch('redirect_checker.spawn_workers', return_value=None):
+                        with self.assertRaises(KeyboardInterrupt):
+                            redirect_checker.main_loop(config)
         logger.info.assert_called_with(
             'Spawning ' + str(config.WORKER_POOL_SIZE) + ' workers')
         config.WORKER_POOL_SIZE = 0

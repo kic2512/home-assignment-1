@@ -96,29 +96,26 @@ class WorkerTestCase(unittest.TestCase):
                     is_input, data = get_redirect_history_from_task(test, 10)
                     self.assertEqual(True, is_input)
 
-    def test_worker(self):
+    def test_worker_is_input(self):
         logger = mock.Mock()
-        #logger_mock.info.return_value = None
-        tube = mock.Mock()
-        tube.take.return_value = mock.Mock()
-        tube.opt = {'tube': 'empty'}
-
-        class Queue():
-            def __init__(self):
-                self.opt = {
-                    'tube': 'empty'
-                }
-
-            def tube(self, name):
-                return name
-
-        queue = Queue()
         cnf = Config()
         cnf.QUEUE_TAKE_TIMEOUT = mock.Mock(side_effect=[True, False])
 
-        with mock.patch('lib.utils.tarantool_queue.Queue', mock.Mock(return_value=queue)):
+        with mock.patch('lib.worker.get_tube', return_value=Tube()):
             with mock.patch('lib.worker.get_redirect_history_from_task', return_value=[mock.Mock(), mock.Mock()]):
                 with mock.patch('os.path.exists', mock.Mock(side_effect=[True, False]), create=True):
                     with mock.patch('lib.worker.logger', logger, create=True):
                         worker(cnf, 1)
                         logger.info.assert_any_call(u'Task id=1 done')
+
+    '''def test_worker_isnt_input_and_exc(self):
+        logger = mock.Mock()
+        cnf = Config()
+        cnf.QUEUE_TAKE_TIMEOUT = mock.Mock(side_effect=[True, False])
+
+        with mock.patch('lib.worker.get_tube', return_value=Tube()):
+            with mock.patch('lib.worker.get_redirect_history_from_task', return_value=[mock.Mock(), mock.Mock()]):
+                with mock.patch('os.path.exists', mock.Mock(side_effect=[True, False]), create=True):
+                    with mock.patch('lib.worker.logger', logger, create=True):
+                        worker(cnf, 1)
+                        logger.info.assert_any_call(u'Task id=1 done')'''
