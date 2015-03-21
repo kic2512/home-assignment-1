@@ -176,6 +176,7 @@ class NotificationPusherTestCase(unittest.TestCase):
     def test_done_with_processed_tasks_tarantool_exc(self):
         task_queue_mock = mock.Mock()
         getattr_mock = mock.Mock()
+        log_mock = mock.Mock()
 
         task_queue_mock.qsize.return_value = 1
         task_queue_mock.get_nowait.return_value = [mock.Mock(), mock.Mock()]
@@ -183,7 +184,9 @@ class NotificationPusherTestCase(unittest.TestCase):
 
         with mock.patch('notification_pusher.task_queue', task_queue_mock, create=True):
             with mock.patch('notification_pusher.getattr', getattr_mock, create=True):
-                self.assertRaises(tarantool.DatabaseError, lambda: done_with_processed_tasks(task_queue_mock))
+                with mock.patch('notification_pusher.getattr', getattr_mock, create=True):
+                    with mock.patch('notification_pusher.logger', log_mock, create=True):
+                        self.assertRaises(tarantool.DatabaseError, lambda: done_with_processed_tasks(task_queue_mock))
 
     def test_done_with_processed_tasks_queue_exc(self):
         logger_mock = mock.Mock()
