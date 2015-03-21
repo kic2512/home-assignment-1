@@ -52,7 +52,7 @@ class UtilsTestCase(unittest.TestCase):
                     utils.daemonize()
         setsid_mock.assert_called_once_with()
 
-    def test_create_pidfile_example(self):
+    def test_create_pidfile(self):
         pid = 10
         m_open = mock.mock_open()
         with mock.patch('lib.utils.open', m_open, create=True):
@@ -68,18 +68,16 @@ class UtilsTestCase(unittest.TestCase):
         })
 
     def test_load_config_from_pyfile(self):
-        confid = utils.Config()
-
         with mock.patch('__builtin__.execfile', mock.Mock(side_effect=self.execfile_patch)):
-            self.assertEqual(type(utils.load_config_from_pyfile('filepath')), type(confid))
+            self.assertIsInstance(utils.load_config_from_pyfile('filepath'), utils.Config)
+
 
     def test_parse_cmd_args(self):
-        args = 'arguments'
-        parser = mock.Mock()
-
-        with mock.patch('lib.utils.argparse.ArgumentParser', mock.Mock(return_value=parser)):
-            utils.parse_cmd_args(args)
-        parser.parse_args.assert_called_once_with(args=args)
+        args = ['-c', '/conf', '-P', '/pidfile', '-d']
+        parser = utils.parse_cmd_args(args)
+        self.assertTrue(parser.daemon)
+        self.assertEqual(parser.config, '/conf')
+        self.assertEqual(parser.pidfile, '/pidfile')
 
     def test_get_tube(self):
         name = 'name'
@@ -98,16 +96,17 @@ class UtilsTestCase(unittest.TestCase):
         with mock.patch('lib.utils.Process', mock.Mock(return_value=process)):
             utils.spawn_workers(1, None, None, None)
         process.start.assert_called_once_with()
+        self.assertTrue(process.daemon)
 
     def test_check_network_status_true(self):
         with mock.patch('lib.utils.urllib2.urlopen', mock.Mock()):
-            self.assertEqual(utils.check_network_status(None, None), True)
+            self.assertTrue(utils.check_network_status('http://ya.ru', 10))
 
     def test_check_network_status_false(self):
 
+        
         with mock.patch('lib.utils.urllib2.urlopen', mock.Mock(side_effect=ValueError)):
-            # with self.assertRaises(Exception):
-            self.assertEqual(utils.check_network_status(None, None), False)
+            self.assertEqual(utils.check_network_status('http://ya.ru', 10), False)
 
 
 
