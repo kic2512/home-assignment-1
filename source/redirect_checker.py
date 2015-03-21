@@ -45,7 +45,6 @@ def main(argv):
 
     if args.daemon:
         daemonize()
-        return
 
     if args.pidfile:
         create_pidfile(args.pidfile)

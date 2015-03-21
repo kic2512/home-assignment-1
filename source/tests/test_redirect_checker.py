@@ -43,7 +43,6 @@ class RedirectCheckerTestCase(unittest.TestCase):
         config.WORKER_POOL_SIZE = 1
         logger = mock.Mock()
         sleep = mock.Mock(side_effect=KeyboardInterrupt)
-        spawn_workers = mock.Mock()
 
         with mock.patch('redirect_checker.logger', logger, create=True):
             with mock.patch('redirect_checker.sleep', sleep, create=True):
@@ -70,20 +69,21 @@ class RedirectCheckerTestCase(unittest.TestCase):
             str(config.SLEEP) + '.')
 
     def test_main_daemon_true(self):
-        daemon = mock.Mock()
-
-        with mock.patch('redirect_checker.daemonize', daemon, create=True):
-            redirect_checker.main(['', '-c smth', '-d'])
+        with mock.patch('redirect_checker.daemonize') as daemon:
+            with mock.patch('redirect_checker.load_config_from_pyfile', mock.Mock(return_value=config)):
+                with mock.patch('redirect_checker.main_loop') as main_loop:
+                    redirect_checker.main(['', '-c smth', '-d'])
         daemon.assert_any_call()
+        main_loop.assert_called_with(config)
 
     def test_main_pidfile_true(self):
-        pidfile = mock.mock_open()
-
-        with mock.patch('redirect_checker.create_pidfile', pidfile, create=True):
+        with mock.patch('redirect_checker.create_pidfile') as pidfile:
             with mock.patch('redirect_checker.load_config_from_pyfile', mock.Mock(return_value=config)):
-                with mock.patch('redirect_checker.main_loop', mock.Mock()):
+                with mock.patch('redirect_checker.main_loop') as main_loop:
                     self.assertEqual(redirect_checker.main(['', '-c path', '-P file']), config.EXIT_CODE)
+
         pidfile.assert_called_once_with(' file')
+        main_loop.assert_called_with(config)
 
     def test_main_daemonize_false_pidfile_false(self):
         with mock.patch('redirect_checker.load_config_from_pyfile', mock.Mock(return_value=config)):
