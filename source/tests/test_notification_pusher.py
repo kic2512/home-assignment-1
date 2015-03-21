@@ -20,6 +20,12 @@ config.QUEUE_TUBE = 1
 config.QUEUE_TAKE_TIMEOUT = 1
 config.HTTP_CONNECTION_TIMEOUT = 1
 config.SLEEP = 0
+config.SLEEP_ON_FAIL = 0
+config.LOGGING = {
+    'first': 1,
+    'second': 2,
+    'version': 1
+}
 
 
 class NotificationPusherTestCase(unittest.TestCase):
@@ -236,78 +242,61 @@ class NotificationPusherTestCase(unittest.TestCase):
                     task_queue_mock.put.assert_called_once_with((task_mock, 'bury'))
 
     def test_main_all_right(self):
-        parse_cmd_args_mock = mock.Mock()
-        daemonize_mock = mock.Mock()
-        create_pidfile_mock = mock.Mock()
         load_config_from_pyfile_mock = mock.Mock()
-        patch_all_mock = mock.Mock()
-        install_signal_handlers_mock = mock.Mock()
         main_loop_mock = mock.Mock(side_effect=KeyboardInterrupt)
-        os_mock = mock.Mock()
         dictConfig_mock = mock.Mock()
 
-        argv = [1, 2, 3]
-        parse_cmd_args_mock.return_value = mock.Mock()
+        argv = ['empty', '-c', 'path']
 
-        with mock.patch('notification_pusher.parse_cmd_args', parse_cmd_args_mock, create=True):
-            with mock.patch('notification_pusher.daemonize', daemonize_mock, create=True):
-                with mock.patch('notification_pusher.create_pidfile', create_pidfile_mock, create=True):
-                    with mock.patch('notification_pusher.load_config_from_pyfile', load_config_from_pyfile_mock,
-                                    create=True):
-                        with mock.patch('notification_pusher.patch_all', patch_all_mock, create=True):
-                            with mock.patch('notification_pusher.install_signal_handlers', install_signal_handlers_mock,
-                                            create=True):
-                                with mock.patch('notification_pusher.main_loop', main_loop_mock, create=True):
-                                    with mock.patch('notification_pusher.os', os_mock, create=True):
-                                        with mock.patch('notification_pusher.dictConfig', dictConfig_mock, create=True):
-                                            with self.assertRaises(KeyboardInterrupt):
-                                                main(argv)
+        with mock.patch('notification_pusher.load_config_from_pyfile', load_config_from_pyfile_mock, create=True):
+            with mock.patch('notification_pusher.main_loop', main_loop_mock, create=True):
+                with mock.patch('notification_pusher.dictConfig', dictConfig_mock, create=True):
+                    with self.assertRaises(KeyboardInterrupt):
+                        main(argv)
 
-    def test_main_except(self):
+    def test_main_except_daemon(self):
         parse_cmd_args_mock = mock.Mock()
-        patch_all_mock = mock.Mock()
-        main_loop_mock = mock.Mock(side_effect=Exception)
-        logger_mock = mock.Mock()
+        load_cfg_mock = mock.Mock(side_effect=KeyboardInterrupt)
 
-        argv = [1, 2, 3]
+        daemonize_mock = mock.Mock()
+
+        argv = ['empty', '-c', 'path', '-d']
         parse_cmd_args_mock.return_value = mock.Mock()
+        load_cfg_mock.return_value = config
 
-        with mock.patch('notification_pusher.parse_cmd_args', parse_cmd_args_mock, create=True):
-            with mock.patch('notification_pusher.daemonize', mock.Mock(), create=True):
-                with mock.patch('notification_pusher.create_pidfile', mock.Mock(), create=True):
-                    with mock.patch('notification_pusher.load_config_from_pyfile', mock.Mock(),
-                                    create=True):
-                        with mock.patch('notification_pusher.patch_all', patch_all_mock, create=True):
-                            with mock.patch('notification_pusher.install_signal_handlers', mock.Mock(),
-                                            create=True):
-                                with mock.patch('notification_pusher.main_loop', main_loop_mock, create=True):
-                                    with mock.patch('notification_pusher.os', mock.Mock(), create=True):
-                                        with mock.patch('notification_pusher.dictConfig', mock.Mock(), create=True):
-                                            with mock.patch('notification_pusher.sleep',
-                                                            mock.Mock(side_effect=KeyboardInterrupt), create=True):
-                                                with mock.patch('notification_pusher.logger', logger_mock, create=True):
-                                                    with self.assertRaises(KeyboardInterrupt):
-                                                        main(argv)
+        with mock.patch('notification_pusher.daemonize', daemonize_mock, create=True):
+            with mock.patch('notification_pusher.load_config_from_pyfile', load_cfg_mock, create=True):
+                with self.assertRaises(KeyboardInterrupt):
+                    main(argv)
+                    daemonize_mock.assert_called_once_with()
+
+    def test_main_except_pid(self):
+        parse_cmd_args_mock = mock.Mock()
+        load_cfg_mock = mock.Mock(side_effect=KeyboardInterrupt)
+        create_pid_mock = mock.Mock()
+
+        argv = ['empty', '-c', 'path', '--pid', '42']
+        parse_cmd_args_mock.return_value = mock.Mock()
+        load_cfg_mock.return_value = config
+
+        with mock.patch('notification_pusher.load_config_from_pyfile', load_cfg_mock, create=True):
+            with mock.patch('notification_pusher.create_pidfile', create_pid_mock, create=True):
+                with self.assertRaises(KeyboardInterrupt):
+                    main(argv)
+                    create_pid_mock.assert_called_once_with(42)
 
     def test_main_not_run_app(self):
         parse_cmd_args_mock = mock.Mock()
-        patch_all_mock = mock.Mock()
         logger_mock = mock.Mock()
 
-        argv = [1, 2, 3]
+        argv = ['empty', '-c', 'path']
         parse_cmd_args_mock.return_value = mock.Mock()
         notification_pusher.run_application = False
 
-        with mock.patch('notification_pusher.parse_cmd_args', parse_cmd_args_mock, create=True):
-            with mock.patch('notification_pusher.daemonize', mock.Mock(), create=True):
-                with mock.patch('notification_pusher.create_pidfile', mock.Mock(), create=True):
-                    with mock.patch('notification_pusher.load_config_from_pyfile', mock.Mock(),
-                                    create=True):
-                        with mock.patch('notification_pusher.patch_all', patch_all_mock, create=True):
-                            with mock.patch('notification_pusher.install_signal_handlers', mock.Mock(),
-                                            create=True):
-                                with mock.patch('notification_pusher.os', mock.Mock(), create=True):
-                                    with mock.patch('notification_pusher.dictConfig', mock.Mock(), create=True):
-                                        with mock.patch('notification_pusher.logger', logger_mock, create=True):
-                                            main(argv)
-                                            logger_mock.info.assert_called_with('Stop application loop in main.')
+        with mock.patch('notification_pusher.load_config_from_pyfile', mock.Mock(),
+                        create=True):
+            with mock.patch('notification_pusher.os', mock.Mock(), create=True):
+                with mock.patch('notification_pusher.dictConfig', mock.Mock(), create=True):
+                    with mock.patch('notification_pusher.logger', logger_mock, create=True):
+                        main(argv)
+                        logger_mock.info.assert_called_with('Stop application loop in main.')
