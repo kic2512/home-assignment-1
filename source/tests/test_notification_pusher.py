@@ -141,30 +141,33 @@ class NotificationPusherTestCase(unittest.TestCase):
                     with mock.patch('notification_pusher.tube', tube_mock, create=True):
                         with mock.patch('notification_pusher.run_application', side_effect=[False], create=True):
                             main_loop(config)
-                            logger_mock.info.assert_called_with('Stop application loop.')
+                            logger_mock.info.assert_called_with('Stop application loop.')  # Единственный метод в ветке
 
     def test_stop_handler(self):
         signum = 42
         logger_mock = mock.Mock()
+        offset = notification_pusher.SIGNAL_EXIT_CODE_OFFSET
+        expected_code = offset + signum
         with mock.patch('notification_pusher.logger', logger_mock, create=True):
-            stop_handler(signum)
-            logger_mock.info.assert_called_with('Got signal #{signum}.'.format(signum=signum))
+            exit_code = stop_handler(signum)
+            self.assertEqual(expected_code, exit_code)
 
     def test_done_with_processed_tasks_success(self):
         logger_mock = mock.Mock()
         task_queue_mock = mock.Mock()
         getattr_mock = mock.Mock()
+        action_name_mock = mock.Mock()
+        task_mock = mock.Mock()
 
         task_queue_mock.qsize.return_value = 1
-        task_queue_mock.get_nowait.return_value = [mock.Mock(), mock.Mock()]
+        task_queue_mock.get_nowait.return_value = [task_mock, action_name_mock]
         with mock.patch('notification_pusher.logger', logger_mock, create=True):
             with mock.patch('notification_pusher.task_queue', task_queue_mock, create=True):
                 with mock.patch('notification_pusher.getattr', getattr_mock, create=True):
                     done_with_processed_tasks(task_queue_mock)
-                    self.assertEqual(1, getattr_mock.call_count)
+                    getattr_mock.assert_called_once_with(task_mock, action_name_mock)
 
     def test_done_with_processed_tasks_tarantool_exc(self):
-        logger_mock = mock.Mock()
         task_queue_mock = mock.Mock()
         getattr_mock = mock.Mock()
 
@@ -172,11 +175,9 @@ class NotificationPusherTestCase(unittest.TestCase):
         task_queue_mock.get_nowait.return_value = [mock.Mock(), mock.Mock()]
         getattr_mock.side_effect = tarantool.DatabaseError
 
-        with mock.patch('notification_pusher.logger', logger_mock, create=True):
-            with mock.patch('notification_pusher.task_queue', task_queue_mock, create=True):
-                with mock.patch('notification_pusher.getattr', getattr_mock, create=True):
-                    done_with_processed_tasks(task_queue_mock)
-                    self.assertEqual(True, logger_mock.exception.called)
+        with mock.patch('notification_pusher.task_queue', task_queue_mock, create=True):
+            with mock.patch('notification_pusher.getattr', getattr_mock, create=True):
+                self.assertRaises(tarantool.DatabaseError, lambda: done_with_processed_tasks(task_queue_mock))
 
     def test_done_with_processed_tasks_queue_exc(self):
         logger_mock = mock.Mock()
@@ -184,15 +185,14 @@ class NotificationPusherTestCase(unittest.TestCase):
         gevent_queue_mock = mock.Mock()
         getattr_mock = mock.Mock()
 
-        task_queue_mock.qsize.return_value = 1
+        task_queue_mock.qsize.return_value = 0
         task_queue_mock.get_nowait.side_effect = gevent_queue.Empty
 
         with mock.patch('notification_pusher.logger', logger_mock, create=True):
             with mock.patch('notification_pusher.task_queue', task_queue_mock, create=True):
-                with mock.patch('notification_pusher.break', gevent_queue_mock, create=True):
-                    with mock.patch('notification_pusher.getattr', getattr_mock, create=True):
-                        done_with_processed_tasks(task_queue_mock)
-                        self.assertEqual(False, getattr_mock.called)  # TODO check if break
+                with mock.patch('notification_pusher.getattr', getattr_mock, create=True):
+                    done_with_processed_tasks(task_queue_mock)
+                    self.assertEqual(False, getattr_mock.called)
 
     def execfile_patch(self, filepath, variables):
         variables.update({

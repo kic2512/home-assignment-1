@@ -90,8 +90,9 @@ def done_with_processed_tasks(task_queue):
                 getattr(task, action_name)()
             except tarantool.DatabaseError as exc:
                 logger.exception(exc)
+                raise tarantool.DatabaseError
         except gevent_queue.Empty:
-            break
+            raise gevent_queue.Empty
 
 
 def stop_handler(signum):
@@ -110,6 +111,7 @@ def stop_handler(signum):
 
     run_application = False
     exit_code = SIGNAL_EXIT_CODE_OFFSET + signum
+    return exit_code
 
 
 def main_loop(config):
