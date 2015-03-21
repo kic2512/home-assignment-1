@@ -224,7 +224,7 @@ def daemonize():
     try:
         pid = os.fork()
     except OSError as exc:
-        raise Exception("%s [%d]" % (exc.strerror, exc.errno))
+        raise OSError("%s [%d]" % (exc.strerror, exc.errno))
 
     if pid == 0:
         os.setsid()
@@ -232,7 +232,7 @@ def daemonize():
         try:
             pid = os.fork()
         except OSError as exc:
-            raise Exception("%s [%d]" % (exc.strerror, exc.errno))
+            raise OSError("%s [%d]" % (exc.strerror, exc.errno))
 
         if pid > 0:
             os._exit(0)

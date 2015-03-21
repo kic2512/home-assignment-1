@@ -52,7 +52,7 @@ class NotificationPusherTestCase(unittest.TestCase):
             with mock.patch('os.setsid', setsid_mock, create=True):
                 with mock.patch('os._exit', exit_mock, create=True):
                     daemonize()
-                    self.assertEqual(True, exit_mock.called)
+                    self.assertTrue(exit_mock.called)
 
     def test_daemonize_cant_fork_any_times(self):
         fork_mock = mock.Mock()
@@ -67,7 +67,7 @@ class NotificationPusherTestCase(unittest.TestCase):
         fork_mock = mock.Mock()
         fork_mock.side_effect = OSError(1, "I am exception !")
         with mock.patch('os.fork', fork_mock, create=True):
-            self.assertRaises(Exception, lambda: daemonize())
+            self.assertRaises(OSError, lambda: daemonize())
 
     def test_daemonize_fork_except_second_time(self):
         fork_mock = mock.Mock()
@@ -75,7 +75,7 @@ class NotificationPusherTestCase(unittest.TestCase):
         setsid_mock = mock.Mock()
         with mock.patch('os.fork', fork_mock, create=True):
             with mock.patch('os.setsid', setsid_mock, create=True):
-                self.assertRaises(Exception, lambda: daemonize())
+                self.assertRaises(OSError, lambda: daemonize())
 
     def test_install_signal_handlers(self):
         gevent_mock = mock.Mock()
