@@ -23,7 +23,9 @@ from requests.exceptions import RequestException
 SIGNAL_EXIT_CODE_OFFSET = 128
 """Коды выхода рассчитываются как 128 + номер сигнала"""
 
-run_application = True
+
+def run_application():
+    return True
 """Флаг, определяющий, должно ли приложение продолжать работу."""
 
 exit_code = 0
@@ -149,7 +151,7 @@ def main_loop(config):
         count=config.WORKER_POOL_SIZE, sleep=config.SLEEP
     ))
 
-    while run_application:
+    while run_application():
         free_workers_count = worker_pool.free_count()
 
         logger.debug('Pool has {count} free workers.'.format(count=free_workers_count))

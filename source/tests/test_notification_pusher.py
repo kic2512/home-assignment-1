@@ -1,3 +1,5 @@
+# coding: utf-8
+
 import unittest
 import mock
 import tarantool
@@ -91,28 +93,38 @@ class NotificationPusherTestCase(unittest.TestCase):
             self.assertEqual(True, argparse_mock.called)
 
     def test_main_loop_run_app(self):
-        logger_mock = mock.Mock()
         tarantool_queue_mock = mock.Mock()
         tube_mock = mock.Mock()
-        gevent_queue_mock = mock.Mock()
         greenlet_mock = mock.Mock()
-        sleep_mock = mock.Mock()
-        done_with_processed_tasks_mock = mock.Mock()
+        worker_mock = mock.Mock()
 
         tube_mock.take.return_value = True
-        sleep_mock.side_effect = KeyboardInterrupt
-        gevent_queue_mock.Queue.return_value = 1
+        worker_mock.start.side_effect = KeyboardInterrupt
+        greenlet_mock.return_value = worker_mock
 
-        with mock.patch('notification_pusher.logger', logger_mock, create=True):
-            with mock.patch('notification_pusher.tarantool_queue', tarantool_queue_mock, create=True):
-                with mock.patch('notification_pusher.gevent_queue', gevent_queue_mock, create=True):
-                    with mock.patch('notification_pusher.tube', tube_mock, create=True):
-                        with mock.patch('notification_pusher.Greenlet', greenlet_mock, create=True):
-                            with mock.patch('notification_pusher.done_with_processed_tasks',
-                                            done_with_processed_tasks_mock, create=True):
-                                with mock.patch('notification_pusher.sleep', sleep_mock, create=True):
-                                    with self.assertRaises(KeyboardInterrupt):
-                                        main_loop(config)
+        with mock.patch('notification_pusher.tarantool_queue', tarantool_queue_mock, create=True):
+            with mock.patch('notification_pusher.tube', tube_mock, create=True):
+                with mock.patch('notification_pusher.Greenlet', greenlet_mock, create=True):
+                    self.assertRaises(KeyboardInterrupt, lambda: main_loop(config))
+
+    def test_main_loop_run_app_no_free_workers(self):
+        tarantool_queue_mock = mock.Mock()
+        tube_mock = mock.Mock()
+        pool_mock = mock.Mock()
+        worker_pool_mock = mock.Mock()
+        done_mock = mock.Mock()
+
+        worker_pool_mock.free_count.return_value = 0
+        pool_mock.return_value = worker_pool_mock
+        tube_mock.take.return_value = True
+
+        with mock.patch('notification_pusher.tarantool_queue', tarantool_queue_mock, create=True):
+            with mock.patch('notification_pusher.tube', tube_mock, create=True):
+                with mock.patch('notification_pusher.Pool', pool_mock, create=True):
+                    with mock.patch('notification_pusher.done_with_processed_tasks', done_mock, create=True):
+                        with mock.patch('notification_pusher.run_application', side_effect=[True, False], create=True):
+                            main_loop(config)
+                            self.assertFalse(worker_pool_mock.start.called)
 
     def test_main_loop_not_run_app(self):
         logger_mock = mock.Mock()
@@ -127,7 +139,7 @@ class NotificationPusherTestCase(unittest.TestCase):
             with mock.patch('notification_pusher.tarantool_queue', tarantool_queue_mock, create=True):
                 with mock.patch('notification_pusher.gevent_queue', gevent_queue_mock, create=True):
                     with mock.patch('notification_pusher.tube', tube_mock, create=True):
-                        with mock.patch('notification_pusher.run_application', False, create=True):
+                        with mock.patch('notification_pusher.run_application', side_effect=[False], create=True):
                             main_loop(config)
                             logger_mock.info.assert_called_with('Stop application loop.')
 
@@ -189,12 +201,10 @@ class NotificationPusherTestCase(unittest.TestCase):
         })
 
     def test_load_config_from_pyfile_is_upper(self):
-        setattr_mock = mock.Mock()
         exec_mock = mock.Mock(side_effect=self.execfile_patch)
         with mock.patch('__builtin__.execfile', exec_mock, create=True):
-            with mock.patch('notification_pusher.setattr', setattr_mock, create=True):
-                load_config_from_pyfile('path')
-                # TODO MOCK EXECFILE
+            cfg = load_config_from_pyfile('path')
+            self.assertTrue(hasattr(cfg, 'SECOND'))
 
     def test_notification_worker_all_right(self):
         logger_mock = mock.Mock()
@@ -208,7 +218,7 @@ class NotificationPusherTestCase(unittest.TestCase):
             with mock.patch('notification_pusher.json', json_mock, create=True):
                 with mock.patch('notification_pusher.requests', requests_mock, create=True):
                     notification_worker(task_mock, task_queue_mock)
-                    self.assertEqual(0, logger_mock.exception.call_count)
+                    task_queue_mock.put.assert_called_once_with((task_mock, 'ack'))
 
     def test_notification_worker_request_exc(self):
         logger_mock = mock.Mock()
@@ -223,7 +233,7 @@ class NotificationPusherTestCase(unittest.TestCase):
             with mock.patch('notification_pusher.json', json_mock, create=True):
                 with mock.patch('notification_pusher.requests', requests_mock, create=True):
                     notification_worker(task_mock, task_queue_mock)
-                    self.assertEqual(1, logger_mock.exception.call_count)
+                    task_queue_mock.put.assert_called_once_with((task_mock, 'bury'))
 
     def test_main_all_right(self):
         parse_cmd_args_mock = mock.Mock()
