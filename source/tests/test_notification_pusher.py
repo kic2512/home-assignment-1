@@ -214,6 +214,7 @@ class NotificationPusherTestCase(unittest.TestCase):
         with mock.patch('__builtin__.execfile', exec_mock, create=True):
             cfg = load_config_from_pyfile('path')
             self.assertTrue(hasattr(cfg, 'SECOND'))
+            self.assertFalse(hasattr(cfg, 'first'))
 
     def test_notification_worker_all_right(self):
         logger_mock = mock.Mock()
@@ -222,12 +223,15 @@ class NotificationPusherTestCase(unittest.TestCase):
         json_mock = mock.Mock()
         requests_mock = mock.Mock()
 
-        task_mock.data.copy.return_value = {'id': 1, 'callback_url': 2}
+        url = 'http://empty.com'
+
+        task_mock.data.copy.return_value = {'id': 1, 'callback_url': url}
         with mock.patch('notification_pusher.logger', logger_mock, create=True):
             with mock.patch('notification_pusher.json', json_mock, create=True):
                 with mock.patch('notification_pusher.requests', requests_mock, create=True):
                     notification_worker(task_mock, task_queue_mock)
                     task_queue_mock.put.assert_called_once_with((task_mock, 'ack'))
+                    requests_mock.post.assert_called_once_with(url, data=json_mock.dumps())
 
     def test_notification_worker_request_exc(self):
         logger_mock = mock.Mock()
@@ -237,7 +241,9 @@ class NotificationPusherTestCase(unittest.TestCase):
         requests_mock = mock.Mock(side_effect=RequestException)
         requests_mock.post.side_effect = RequestException
 
-        task_mock.data.copy.return_value = {'id': 1, 'callback_url': 2}
+        url = 'http://empty.com'
+
+        task_mock.data.copy.return_value = {'id': 1, 'callback_url': url}
         with mock.patch('notification_pusher.logger', logger_mock, create=True):
             with mock.patch('notification_pusher.json', json_mock, create=True):
                 with mock.patch('notification_pusher.requests', requests_mock, create=True):

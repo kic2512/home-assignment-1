@@ -92,7 +92,7 @@ def done_with_processed_tasks(task_queue):
                 logger.exception(exc)
                 raise tarantool.DatabaseError
         except gevent_queue.Empty:
-            raise gevent_queue.Empty
+            break
 
 
 def stop_handler(signum):
